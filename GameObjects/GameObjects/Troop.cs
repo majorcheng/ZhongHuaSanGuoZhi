@@ -709,7 +709,7 @@
                     }
                 }
                 //retreat if the target no longer belong to us and this is a transportation troop.
-                if (this.WillArchitecture.BelongedFaction != this.BelongedFaction && this.Army.KindID == 29)
+                if (this.WillArchitecture.BelongedFaction != this.BelongedFaction && this.Army.Merit == 0)
                 {
                     this.GoBack();
                     this.AttackTargetKind = TroopAttackTargetKind.无反默认;
@@ -721,7 +721,7 @@
                 //retreat if target has too much food/fund that further transfer will fill up there, for transport troop
                 if ((this.WillArchitecture.Food + this.Food > this.WillArchitecture.FoodCeiling ||
                     this.WillArchitecture.Fund + this.zijin > this.WillArchitecture.FundCeiling) &&
-                    this.Army.KindID == 29 && !this.StartingArchitecture.HasHostileTroopsInView())
+                    this.Army.Merit == 0 && !this.StartingArchitecture.HasHostileTroopsInView())
                 {
                     this.GoBack();
                     this.AttackTargetKind = TroopAttackTargetKind.无反默认;
@@ -2045,6 +2045,12 @@
             {
                 return false;
             }
+            //停战退兵
+            if (this.BelongedFaction.IsFriendly(this.WillArchitecture.BelongedFaction))
+            {
+                return false;
+            }
+
             if (base.Scenario.GetArchitectureByPositionNoCheck(this.Position) == this.WillArchitecture)
             {
                 return true;
@@ -2311,6 +2317,7 @@
                 {
                     receiving.IncreaseRoutExperience(false);
                     receiving.AddRoutedCount();
+                    receiving.ReleaseCaptiveBeforeBeRouted();
                 }
                 if (receiving.StartingArchitecture != null)
                 {
@@ -2367,6 +2374,11 @@
                 if (sending.StartingArchitecture != null)
                 {
                     sending.StartingArchitecture.AddPopulationPack((int) (sending.Scenario.GetDistance(receiving.Position, sending.StartingArchitecture.ArchitectureArea) / 2.0), receiving.GetPopulation());
+                }
+                Architecture oldLandedArch = sending.Scenario.GetArchitectureByPosition(receiving.Position);
+                if (sending.Army.Kind.ArchitectureCounterDamageRate <= 0 && oldLandedArch != null && !sending.BelongedFaction.IsFriendly(oldLandedArch.BelongedFaction))
+                {
+                    sending.TargetArchitecture = oldLandedArch;
                 }
                 receiving.BeRouted();
                 if (sending.Combativity < sending.Army.CombativityCeiling)
@@ -2439,6 +2451,11 @@
         public bool ControlAvail()
         {
             return ((this.Status != TroopStatus.混乱) && this.Controllable);
+        }
+
+        public bool CounterAttackAvailFromAnyPosition(Troop troop)
+        {
+            return ((((!troop.Destroyed && troop.CounterOffence) && (this.BeCountered && (troop.Offence > 0))) && (!this.BaseNoCounterAttack && !this.NoCounterAttack)));
         }
 
         public bool CounterAttackAvail(Troop troop)
@@ -2712,6 +2729,11 @@
         private int stuckedFor = 0;
         public void DayEvent()
         {
+            this.Army.Tiredness += GlobalVariables.TirednessIncrease;
+            foreach (Person p in this.Persons)
+            {
+                p.Tiredness += GlobalVariables.TirednessIncrease;
+            }
             if (this.BelongedFaction != null)
             {
                 this.ViewingWillArchitecture = this.IsViewingWillArchitecture();
@@ -2971,6 +2993,10 @@
                 if (this.army.BelongedTroop == this)
                 {
                     this.army.BelongedTroop = null;
+                    if (this.Army.Morale > this.Army.MoraleCeiling)
+                    {
+                        this.Army.Morale = this.Army.MoraleCeiling;
+                    }
                 }
                 if (this.BelongedLegion != null)
                 {
@@ -3823,7 +3849,8 @@
 
         public int GetCostByPosition(Point position, bool oblique, int DirectionCost)
         {
-            if ((this.Army.Kind.OneAdaptabilityKind > 0) && (this.Army.Kind.OneAdaptabilityKind != (int) base.Scenario.GetTerrainKindByPosition(position)))
+            if ((this.Army.Kind.OneAdaptabilityKind > 0) && (this.Army.Kind.OneAdaptabilityKind != (int) base.Scenario.GetTerrainKindByPosition(position)) &&
+                base.Scenario.GetArchitectureByPosition(position) == null)
             {
                 return 1000;
             }
@@ -6388,10 +6415,13 @@
 
         public void InitializeInfluences()
         {
-            this.Army.ApplyFollowedLeader(this);
-            foreach (Influence influence in this.Army.Kind.Influences.Influences.Values)
+            if (this.Army != null)
             {
-                influence.ApplyInfluence(this, Applier.MilitaryKind, 0);
+                this.Army.ApplyFollowedLeader(this);
+                foreach (Influence influence in this.Army.Kind.Influences.Influences.Values)
+                {
+                    influence.ApplyInfluence(this, Applier.MilitaryKind, 0);
+                }
             }
             this.ApplyFactionInfluences();
             this.ApplyEventEffectInfluences();
@@ -9722,7 +9752,7 @@
         {
             get
             {
-                return this.antiCriticalStrikeChance;
+                return (int) (this.antiCriticalStrikeChance - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -9730,7 +9760,7 @@
         {
             get
             {
-                return this.antiStratagemChanceIncrement;
+                return (int) (this.antiStratagemChanceIncrement - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -9852,7 +9882,7 @@
         {
             get
             {
-                return this.avoidSurroundedChance;
+                return (int) (this.avoidSurroundedChance - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -9944,7 +9974,7 @@
         {
             get
             {
-                return this.chaosAfterCriticalStrikeChance;
+                return (int) (this.chaosAfterCriticalStrikeChance - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -9952,7 +9982,7 @@
         {
             get
             {
-                return this.chaosAfterStratagemSuccessChance;
+                return (int) (this.chaosAfterStratagemSuccessChance - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -9960,7 +9990,7 @@
         {
             get
             {
-                return this.chaosAfterSurroundAttackChance;
+                return (int) (this.chaosAfterSurroundAttackChance - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -10100,7 +10130,7 @@
         {
             get
             {
-                return this.criticalStrikeChance;
+                return (int) (this.criticalStrikeChance - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -10288,7 +10318,7 @@
         {
             get
             {
-                int num = 10 - this.Army.Scales;
+                int num = (int) (10 * (1 / this.TirednessFactor) - this.Army.Scales);
                 if (num < 3)
                 {
                     num = 3;
@@ -10301,7 +10331,7 @@
         {
             get
             {
-                return this.defence;
+                return (int) (this.defence * this.TirednessFactor);
             }
         }
 
@@ -10425,7 +10455,7 @@
         {
             get
             {
-                return ((this.Offence + this.Defence) * (((((((((((((((((((((((((1 + (((this.CurrentArchitecture != null) && (this.CurrentArchitecture.Endurance > 0)) ? 10 : 0)) + (this.TroopIntelligence / 2)) + (this.Quantity / 500)) + (this.Combativity / 4)) + (this.HasCombatTitle ? (20 * this.Leader.CombatTitle.Level) : 0)) + (this.CombatMethods.Count * 5)) + (this.Stunts.Count * 20)) + this.CriticalStrikeChance) + this.AntiCriticalStrikeChance) + this.ChaosAfterCriticalStrikeChance) + (this.AvoidSurroundedChance / 2)) + this.ChaosAfterSurroundAttackChance) + this.StratagemChanceIncrement) + this.AntiStratagemChanceIncrement) + this.ChaosAfterStratagemSuccessChance) + (this.ChanceIncrementOfCriticalStrikeInViewArea * 4)) + (this.ChanceDecrementOfCriticalStrikeInViewArea * 4)) + (this.CombativityIncrementPerDayInViewArea * 4)) + (this.CombativityDecrementPerDayInViewArea * 4)) + (this.ChanceIncrementOfStratagemInViewArea * 4)) + (this.ChanceDecrementOfStratagemInViewArea * 4)) + ((int) (this.OffenceRateIncrementInViewArea * 100f))) + ((int) (this.OffenceRateDecrementInViewArea * 100f))) + ((int) (this.DefenceRateIncrementInViewArea * 100f))) + ((int) (this.DefenceRateDecrementInViewArea * 100f))));
+                return Math.Max(1, ((this.Offence + this.Defence) * (((((((((((((((((((((((((1 + (((this.CurrentArchitecture != null) && (this.CurrentArchitecture.Endurance > 0)) ? 10 : 0)) + (this.TroopIntelligence / 2)) + (this.Quantity / 500)) + (this.Combativity / 4)) + (this.HasCombatTitle ? (20 * this.Leader.CombatTitle.Level) : 0)) + (this.CombatMethods.Count * 5)) + (this.Stunts.Count * 20)) + this.CriticalStrikeChance) + this.AntiCriticalStrikeChance) + this.ChaosAfterCriticalStrikeChance) + (this.AvoidSurroundedChance / 2)) + this.ChaosAfterSurroundAttackChance) + this.StratagemChanceIncrement) + this.AntiStratagemChanceIncrement) + this.ChaosAfterStratagemSuccessChance) + (this.ChanceIncrementOfCriticalStrikeInViewArea * 4)) + (this.ChanceDecrementOfCriticalStrikeInViewArea * 4)) + (this.CombativityIncrementPerDayInViewArea * 4)) + (this.CombativityDecrementPerDayInViewArea * 4)) + (this.ChanceIncrementOfStratagemInViewArea * 4)) + (this.ChanceDecrementOfStratagemInViewArea * 4)) + ((int) (this.OffenceRateIncrementInViewArea * 100f))) + ((int) (this.OffenceRateDecrementInViewArea * 100f))) + ((int) (this.DefenceRateIncrementInViewArea * 100f))) + ((int) (this.DefenceRateDecrementInViewArea * 100f)))));
             }
         }
 
@@ -10872,11 +10902,27 @@
             }
         }
 
+        public int Tiredness
+        {
+            get
+            {
+                return this.Army.Tiredness;
+            }
+        }
+
+        public double TirednessFactor
+        {
+            get
+            {
+                return Math.Max(0.2, Math.Min(1, ((210 - this.Army.Tiredness) / 180.0)));
+            }
+        }
+
         public int Offence
         {
             get
             {
-                return this.offence;
+                return (int) (this.offence * this.TirednessFactor);
             }
         }
 
@@ -11117,7 +11163,7 @@
         {
             get
             {
-                return (((1 + this.Offence) + this.Defence) * (((((((((((1 + (((this.CurrentArchitecture != null) && (this.CurrentArchitecture.Endurance > 0)) ? 10 : 0)) + (this.Quantity / 500)) + (this.Combativity / 4)) + (this.HasCombatTitle ? (20 * this.Leader.CombatTitle.Level) : 0)) + (this.CombatMethods.Count * 5)) + (this.Stunts.Count * 20)) + this.CriticalStrikeChance) + this.AntiCriticalStrikeChance) + this.ChaosAfterCriticalStrikeChance) + (this.AvoidSurroundedChance / 2)) + this.ChaosAfterSurroundAttackChance));
+                return Math.Max(1, (((1 + this.Offence) + this.Defence) * (((((((((((1 + (((this.CurrentArchitecture != null) && (this.CurrentArchitecture.Endurance > 0)) ? 10 : 0)) + (this.Quantity / 500)) + (this.Combativity / 4)) + (this.HasCombatTitle ? (20 * this.Leader.CombatTitle.Level) : 0)) + (this.CombatMethods.Count * 5)) + (this.Stunts.Count * 20)) + this.CriticalStrikeChance) + this.AntiCriticalStrikeChance) + this.ChaosAfterCriticalStrikeChance) + (this.AvoidSurroundedChance / 2)) + this.ChaosAfterSurroundAttackChance)));
             }
         }
 
@@ -11382,7 +11428,7 @@
         {
             get
             {
-                return this.stratagemChanceIncrement;
+                return (int) (this.stratagemChanceIncrement - (100 - this.TirednessFactor * 100));
             }
         }
 
@@ -11497,8 +11543,29 @@
                 }
                 else if (this.targetTroop.Destroyed)
                 {
-                    this.targetTroopID = -1;
-                    this.targetTroop = null;
+                    bool found = false;
+                    foreach (Point p in this.ViewArea.Area)
+                    {
+                        Architecture a = this.Scenario.GetArchitectureByPosition(p);
+                        Troop t = this.Scenario.GetTroopByPosition(p);
+                        if (t != null && !this.BelongedFaction.IsFriendly(t.BelongedFaction) && !this.CounterAttackAvailFromAnyPosition(t))
+                        {
+                            this.TargetTroop = t;
+                            found = true;
+                            break;
+                        }
+                        else if (a != null && this.Army.Kind.ArchitectureCounterDamageRate <= 0 && !this.BelongedFaction.IsFriendly(a.BelongedFaction))
+                        {
+                            this.TargetArchitecture = a;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        this.targetTroopID = -1;
+                        this.targetTroop = null;
+                    }
                 }
                 return this.targetTroop;
             }
