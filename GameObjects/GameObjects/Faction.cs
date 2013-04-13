@@ -422,13 +422,17 @@
 
         public void AddTroopMilitary(Troop troop)
         {
-            if (troop.Army.ShelledMilitary == null)
+            //兼容以前的旧存档？
+            if (troop.Army != null)
             {
-                this.AddMilitary(troop.Army);
-            }
-            else
-            {
-                this.AddMilitary(troop.Army.ShelledMilitary);
+                if (troop.Army.ShelledMilitary == null)
+                {
+                    this.AddMilitary(troop.Army);
+                }
+                else
+                {
+                    this.AddMilitary(troop.Army.ShelledMilitary);
+                }
             }
         }
 
@@ -1802,7 +1806,7 @@
             {
                 return false;
             }
-            return ((faction == this) || (base.Scenario.GetDiplomaticRelation(base.ID, faction.ID) >= 300));
+            return ((faction == this) || (base.Scenario.GetDiplomaticRelation(base.ID, faction.ID) >= 300) || (base.Scenario.GetDiplomaticRelationTruce(base.ID, faction.ID) > 0));
         }
 
         public bool IsHostile(Faction faction)
@@ -2272,6 +2276,43 @@
             }
         }
 
+        public void CheckEncircleDiplomaticByFactionName(string EncircleFactionName)
+        {
+            FactionList encircleList = new FactionList();
+            int fc = 0;
+            foreach (Faction f in base.Scenario.Factions)
+            {
+                if ((f.Name != EncircleFactionName) && (f.Leader.StrategyTendency != PersonStrategyTendency.维持现状) && ! f.IsAlien)
+                {
+                    fc++;
+                    if (((base.Scenario.DiplomaticRelations.GetDiplomaticRelation(this.GetFactionByName(EncircleFactionName).ID, f.ID).Relation +
+                        Person.GetIdealOffset(this.GetFactionByName(EncircleFactionName).Leader, f.Leader) * 1.5) < 0
+                        && GameObject.Chance(60))
+                        )
+                    {
+                        encircleList.Add(f);
+                    }
+                }
+            }
+            if ((encircleList.Count * 2 > fc) && fc > 3)
+            {
+                this.Scenario.GameScreen.xianshishijiantupian(this.Leader, this.Leader.Name, "EncircleDiplomaticRelation", "EncircleDiplomaticRelation.jpg", "EncircleDiplomaticRelation.wav", EncircleFactionName, true);
+                foreach (Faction i in encircleList)
+                {
+                    foreach (Faction j in encircleList)
+                    {
+                        if (i != j)
+                        {
+                            if (this.Scenario.DiplomaticRelations.GetDiplomaticRelation(i.ID, j.ID).Truce < 90)
+                            {
+                                this.Scenario.DiplomaticRelations.GetDiplomaticRelation(i.ID, j.ID).Truce = 90;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         private void ResetFriendlyDiplomaticRelations()
         {
             if (base.Scenario.IsPlayer(this)) return;
@@ -2293,6 +2334,8 @@
             {
                 int minTroop = int.MaxValue;
                 DiplomaticRelation minTroopFactionRelation = null;
+                Faction minTroopFactionopposite = null;
+
                 foreach (DiplomaticRelation i in base.Scenario.DiplomaticRelations.GetDiplomaticRelationListByFactionID(base.ID))
                 {
                     Faction opposite = i.GetDiplomaticFaction(this.ID);
@@ -2324,6 +2367,7 @@
                         {
                             minTroop = opposite.ArmyScale;
                             minTroopFactionRelation = i;
+                            minTroopFactionopposite = i.GetDiplomaticFaction(this.ID);
                         }
                     }
                 }
@@ -2331,7 +2375,7 @@
                 {
                     minTroopFactionRelation.Relation = 0;
                     //AI宣布主动解盟
-                    this.Scenario.GameScreen.xianshishijiantupian(this.Leader, this.Leader.Name, "ResetDiplomaticRelation", "ResetDiplomaticRelation.jpg", "ResetDiplomaticRelation.wav", minTroopFactionRelation.Name, true);
+                    this.Scenario.GameScreen.xianshishijiantupian(this.Leader, this.Leader.Name, "ResetDiplomaticRelation", "ResetDiplomaticRelation.jpg", "ResetDiplomaticRelation.wav", minTroopFactionopposite.LeaderName, true);
                 }
             }
         }
@@ -2787,6 +2831,14 @@
                 this.Scenario.GameCommonData.suoyouguanjuezhonglei.Getguanjuedezhonglei(this.guanjue).Name, this.Leader.Position);
             base.Scenario.YearTable.addSelfAdvanceGuanjueEntry(base.Scenario.Date, this, this.Scenario.GameCommonData.suoyouguanjuezhonglei.Getguanjuedezhonglei(this.guanjue));
 			ExtensionInterface.call("SelfAdvancement", new Object[] { this.Scenario, this });
+        }
+
+        public int CityCount
+        {
+            get
+            {
+                return chengchigeshu();
+            }
         }
 
         public int chengchigeshu()
@@ -3398,7 +3450,7 @@
                 int num = 0;
                 foreach (Architecture architecture in this.Architectures)
                 {
-                    num += architecture.AreaCount;
+                    num += architecture.JianzhuGuimo;
                 }
                 return num;
             }
@@ -3948,6 +4000,32 @@
                     stopToControl = base.Scenario.Date.DaysLeft == 0;
                 }
                 return stopToControl;
+            }
+        }
+
+        public int TotalPersonMerit
+        {
+            get
+            {
+                int result = 0;
+                foreach (Person p in this.Persons)
+                {
+                    result += p.Merit;
+                }
+                return result;
+            }
+        }
+
+        public int TotalPersonFightingForce
+        {
+            get
+            {
+                int result = 0;
+                foreach (Person p in this.Persons)
+                {
+                    result += p.FightingForce;
+                }
+                return result;
             }
         }
 
