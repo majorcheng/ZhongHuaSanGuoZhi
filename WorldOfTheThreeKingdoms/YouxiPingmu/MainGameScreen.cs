@@ -70,6 +70,7 @@ namespace WorldOfTheThreeKingdoms.GameScreens
         private TroopLayer troopLayer;
         private int UpdateCount;
         private ViewMove viewMove;
+        private bool isKeyScrolling = false;
         internal FreeText qizidezi;
 
         public MainGameScreen(MainGame game)
@@ -1495,11 +1496,11 @@ namespace WorldOfTheThreeKingdoms.GameScreens
             base.Scenario.ScenarioMap.JumpPosition = this.mainMapLayer.GetCurrentScreenCenter(base.viewportSize);
             try
             {
-                base.Scenario.SaveGameScenarioToDatabase(builder.ConnectionString, saveMap);
+                base.Scenario.SaveGameScenarioToDatabase(builder.ConnectionString, base.Scenario.AllNewGame || saveMap);
             }
             catch (Exception)
             {
-                base.Scenario.SaveGameScenarioToDatabase(builder.ConnectionString, saveMap);
+                base.Scenario.SaveGameScenarioToDatabase(builder.ConnectionString, base.Scenario.AllNewGame || saveMap);
             }
             File.Delete(tempFilePath);
             GC.Collect();
@@ -1606,7 +1607,14 @@ namespace WorldOfTheThreeKingdoms.GameScreens
             thread = null;
         }
 
-
+        public void SaveGameWhenCrash(String _savePath)
+        {
+            this.SaveFileName = _savePath;
+            Thread thread = new Thread(new ThreadStart(this.SaveGameToDisk));
+            thread.Start();
+            thread.Join();
+            thread = null;
+        }
 
         private void Scenario_OnNewFactionAppear(Faction faction)
         {
@@ -1624,12 +1632,16 @@ namespace WorldOfTheThreeKingdoms.GameScreens
         {
             if (base.EnableScroll && (this.viewMove != ViewMove.Stop))
             {
-                if ((Math.Abs((int)(this.mouseState.X - this.previousMouseState.X)) <= 2) && (Math.Abs((int)(this.mouseState.Y - this.previousMouseState.Y)) <= 2))
+                if ((Math.Abs((int)(this.mouseState.X - this.previousMouseState.X)) <= 2) && (Math.Abs((int)(this.mouseState.Y - this.previousMouseState.Y)) <= 2)
+                    || this.isKeyScrolling)
                 {
-                    if ((gameTime.TotalGameTime.TotalMilliseconds - this.lastTime) < 200.0)
-                    {
-                        return;
-                    }
+                    // 没有200毫秒的延迟，鼠标滚动屏幕效果也不错
+                    //
+                    //if (!this.isKeyScrolling && (gameTime.TotalGameTime.TotalMilliseconds - this.lastTime) < 200.0)
+                    //{
+                    //    return;
+                    //}
+
                     int num = (int)((gameTime.ElapsedGameTime.Milliseconds * GlobalVariables.MapScrollSpeed) * this.scrollSpeedScale);
                     switch (this.viewMove)
                     {
@@ -2639,8 +2651,8 @@ namespace WorldOfTheThreeKingdoms.GameScreens
         {
             if (base.EnableUpdate)
             {
-                try
-                {
+                /*try
+                {*/
                     
                     this.UpdateCount++;
                     base.Update(gameTime);
@@ -2656,7 +2668,7 @@ namespace WorldOfTheThreeKingdoms.GameScreens
                             //this.Plugins.youcelanPlugin.Update(gameTime);
                             //this.Plugins.youcelanPlugin.IsShowing = false;
 
-
+                            this.UpdateViewMove();
                             this.HandleLaterMouseEvent(gameTime);
                             this.ScrollTheMainMap(gameTime);
                             this.HandleKey(gameTime);
@@ -2744,7 +2756,7 @@ namespace WorldOfTheThreeKingdoms.GameScreens
 
 
                     }
-                }
+                /*}
                 catch (OutOfMemoryException)
                 {
                     this.mainMapLayer.freeTilesMemory();
@@ -2752,7 +2764,7 @@ namespace WorldOfTheThreeKingdoms.GameScreens
                 catch (InvalidOperationException)
                 {
                     this.mainMapLayer.freeTilesMemory();
-                }
+                }*/
 
             }
         }
@@ -2914,6 +2926,7 @@ namespace WorldOfTheThreeKingdoms.GameScreens
         private void UpdateViewMove()          //更新视野移动方向
         {
             this.ResetMouse();
+            
             if (((base.Game.IsActive && base.EnableScroll) && (!this.DrawingSelector && (base.viewportSize != Point.Zero))) && ((((this.mouseState.X >= 0) && (this.mouseState.Y >= 0)) && (this.mouseState.X <= this.viewportSize.X)) && (this.mouseState.Y <= this.viewportSize.Y)))
             {
                 if (this.mouseState.X < 50)
@@ -2976,6 +2989,72 @@ namespace WorldOfTheThreeKingdoms.GameScreens
                 {
                     base.MouseArrowTexture = this.Textures.MouseArrowTextures[4];
                     this.viewMove = ViewMove.Bottom;
+                }
+
+                if (this.keyState.IsKeyDown(Keys.Left))
+                {
+                    if (this.keyState.IsKeyDown(Keys.Up))
+                    {
+                        if ((this.mainMapLayer.LeftEdge != 0) || (this.mainMapLayer.TopEdge != 0))
+                        {
+                            this.viewMove = ViewMove.TopLeft;
+                            this.isKeyScrolling = true;
+                        }
+                    }
+                    else if (this.keyState.IsKeyDown(Keys.Down))
+                    {
+                        if ((this.mainMapLayer.LeftEdge != 0) || ((this.mainMapLayer.TopEdge + this.mainMapLayer.TotalTileHeight) != this.viewportSize.Y))
+                        {
+                            this.viewMove = ViewMove.BottomLeft;
+                            this.isKeyScrolling = true;
+                        }
+                    }
+                    else if (this.mainMapLayer.LeftEdge != 0)
+                    {
+                        this.viewMove = ViewMove.Left;
+                        this.isKeyScrolling = true;
+                    }
+                }
+                else if (this.keyState.IsKeyDown(Keys.Right))
+                {
+                    if (this.keyState.IsKeyDown(Keys.Up))
+                    {
+                        if (((this.mainMapLayer.LeftEdge + this.mainMapLayer.TotalTileWidth) != this.viewportSize.X) || (this.mainMapLayer.TopEdge != 0))
+                        {
+                            this.viewMove = ViewMove.TopRight;
+                            this.isKeyScrolling = true;
+                        }
+                    }
+                    else if (this.keyState.IsKeyDown(Keys.Down))
+                    {
+                        if (((this.mainMapLayer.LeftEdge + this.mainMapLayer.TotalTileWidth) != this.viewportSize.X) || ((this.mainMapLayer.TopEdge + this.mainMapLayer.TotalTileHeight) != this.viewportSize.Y))
+                        {
+                            this.viewMove = ViewMove.BottomRight;
+                            this.isKeyScrolling = true;
+                        }
+                    }
+                    else if ((this.mainMapLayer.LeftEdge + this.mainMapLayer.TotalTileWidth) != this.viewportSize.X)
+                    {
+                        this.viewMove = ViewMove.Right;
+                        this.isKeyScrolling = true;
+                    }
+                }
+                else if (this.keyState.IsKeyDown(Keys.Up))
+                {
+                    if (this.mainMapLayer.TopEdge != 0)
+                    {
+                        this.viewMove = ViewMove.Top;
+                        this.isKeyScrolling = true;
+                    }
+                }
+                else if ((this.keyState.IsKeyDown(Keys.Down) && ((this.mainMapLayer.TopEdge + this.mainMapLayer.TotalTileHeight) != this.viewportSize.Y)))
+                {
+                    this.viewMove = ViewMove.Bottom;
+                    this.isKeyScrolling = true;
+                }
+                else
+                {
+                    this.isKeyScrolling = false;
                 }
             }
         }

@@ -188,8 +188,7 @@
         public bool noFactionFrontline;
         public int captureChance;
         public int noEscapeChance;
-        public int captiveLoyaltyFallThreshold;
-        public int captiveLoyaltyExtraFall;
+        public List<KeyValuePair<int, int>> captiveLoyaltyFall = new List<KeyValuePair<int,int>>();
         public bool noFundToSustainFacility;
         public int facilityEnduranceIncrease;
         public Dictionary<int, int> disasterChanceDecrease = new Dictionary<int, int>();
@@ -197,6 +196,7 @@
         public Dictionary<int, float> disasterDamageRateDecrease = new Dictionary<int, float>();
         public float militaryPopulationRateIncrease;
         public float enduranceDecreaseRateDrop;
+        public HashSet<Architecture> actuallyUnreachableArch = new HashSet<Architecture>();
 
         public float ExperienceRate;
 
@@ -928,7 +928,7 @@
                         {
                             if (i.Kind.AIValue(this) < 0 && !i.Kind.bukechaichu)
                             {
-                                if (this.FacilityEnabled)
+                                if (this.FacilityEnabled || i.MaintenanceCost <= 0)
                                 {
                                     i.Influences.PurifyInfluence(this, Applier.Facility, i.ID);
                                 }
@@ -1015,7 +1015,7 @@
                         //if no space and the facility is good enough than others, remove others
                         foreach (Facility f in realToDestroy)
                         {
-                            if (this.FacilityEnabled)
+                            if (this.FacilityEnabled || f.MaintenanceCost <= 0)
                             {
                                 f.Influences.PurifyInfluence(this, Applier.Facility, f.ID);
                             }
@@ -1182,7 +1182,7 @@
                                 while (this.FacilityPositionLeft < hougong.PositionOccupied && fl.Count > 0)
                                 {
                                     Facility f = fl[0] as Facility;
-                                    if (this.FacilityEnabled)
+                                    if (this.FacilityEnabled || f.MaintenanceCost <= 0)
                                     {
                                         f.Influences.PurifyInfluence(this, Applier.Facility, f.ID);
                                     }
@@ -1291,7 +1291,7 @@
                     {
                         if (leader.LocationArchitecture.meinvkongjian() > this.meinvkongjian())
                         {
-                            if (toTake.LocationArchitecture == leader.LocationArchitecture)
+                            if (toTake.LocationArchitecture == leader.LocationArchitecture && toTake.LocationArchitecture.Fund >= 50000)
                             {
                                 leader.XuanZeMeiNv(toTake);
                                 toTake.WaitForFeiZi = null;
@@ -1313,7 +1313,7 @@
                             }
                             if (toTake.LocationArchitecture == this)
                             {
-                                if (leader.LocationArchitecture == this)
+                                if (leader.LocationArchitecture == this && this.Fund >= 50000)
                                 {
                                     leader.XuanZeMeiNv(toTake);
                                     toTake.WaitForFeiZi = null;
@@ -1437,7 +1437,8 @@
                     }
                     capital = otherArchitectureList[0] as Architecture;
                 }
-                Architecture dest = capital;
+                ArchitectureList otherArch = this.GetOtherArchitectureList();
+                Architecture dest = (Architecture) otherArch[GameObject.Random(otherArch.Count)];
                 double minDist = double.MaxValue;
                 foreach (Architecture i in otherArchitectureList)
                 {
@@ -1609,7 +1610,7 @@
                         Military transportTeam = null;
                         foreach (Military m in Militaries)
                         {
-                            if (m.Kind.ID == 29 && (transportTeam == null || transportTeam.Quantity <= m.Quantity))
+                            if (m.IsTransport && (transportTeam == null || transportTeam.Quantity <= m.Quantity))
                             {
                                 transportTeam = m;
                             }
@@ -1629,7 +1630,7 @@
                         {
                             foreach (LinkNode n in this.AIAllLinkNodes.Values)
                             {
-                                if (n.A.BelongedFaction == this.BelongedFaction && !n.A.HostileLine)
+                                if (n.A.BelongedFaction == this.BelongedFaction && !n.A.HostileLine && n.A.Fund < n.A.FundCeiling * 0.8 && n.A.Food < n.A.FoodCeiling * 0.8)
                                 {
                                     dest = n.A;
                                     break;
@@ -1811,7 +1812,7 @@
                             Military transportTeam = null;
                             foreach (Military m in Militaries)
                             {
-                                if (m.Kind.ID == 29 && (transportTeam == null || transportTeam.Quantity <= m.Quantity))
+                                if (m.IsTransport && (transportTeam == null || transportTeam.Quantity <= m.Quantity))
                                 {
                                     transportTeam = m;
                                 }
@@ -1872,7 +1873,7 @@
                 this.AIAutoHire();
             }
             this.StopAllWork();
-            if (this.Fund < 100) return;
+            if (this.Fund < (int) Parameters.RewardPersonCost * this.PersonCount * 1.5 + 100) return;
 
             PersonList zhenzaiPersons = new PersonList();
             PersonList agriculturePersons = new PersonList();
@@ -1885,7 +1886,8 @@
             PersonList recruitmentPersons = new PersonList();
             MilitaryList weighingMilitaries = new MilitaryList();
 
-            if ((forPlayer || ((this.PlanArchitecture == null) || GameObject.Chance(10))) && this.HasPerson())
+            //if ((forPlayer || ((this.PlanArchitecture == null) || GameObject.Chance(10))) && this.HasPerson())
+            if (this.HasPerson())
             {
                 int num;
                 this.ReSortAllWeighingList(zhenzaiPersons, agriculturePersons, commercePersons, technologyPersons, dominationPersons,
@@ -1924,15 +1926,27 @@
                         {
                             foreach (Person person in dominationPersons)
                             {
-                                person.WorkKind = ArchitectureWorkKind.统治;
+                                if (person.WorkKind == ArchitectureWorkKind.无)
+                                {
+                                    person.WorkKind = ArchitectureWorkKind.统治;
+                                    break;
+                                }
                             }
                             foreach (Person person in endurancePersons)
                             {
-                                person.WorkKind = ArchitectureWorkKind.耐久;
+                                if (person.WorkKind == ArchitectureWorkKind.无)
+                                {
+                                    person.WorkKind = ArchitectureWorkKind.耐久;
+                                    break;
+                                }
                             }
                             foreach (Person person in moralePersons)
                             {
-                                person.WorkKind = ArchitectureWorkKind.民心;
+                                if (person.WorkKind == ArchitectureWorkKind.无)
+                                {
+                                    person.WorkKind = ArchitectureWorkKind.民心;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -2215,7 +2229,7 @@
                                                     bool recruited = false;
                                                     foreach (Military military in recruitmentMilitaryList)
                                                     {
-                                                        if (military.KindID == 29)
+                                                        if (military.IsTransport)
                                                         {
                                                             person.RecruitMilitary(military);
                                                             recruited = true;
@@ -2256,7 +2270,7 @@
                             int unfullNavalArmyCount = 0;
                             foreach (Military military in this.Militaries)
                             {
-                                if (military.Scales < ((((float)military.Kind.MaxScale) / ((float)military.Kind.MinScale)) * 0.75f) && military.Kind.ID != 29)
+                                if (military.Scales < ((((float)military.Kind.MaxScale) / ((float)military.Kind.MinScale)) * 0.75f) && !military.IsTransport)
                                 {
                                     unfullArmyCount++;
                                     if (military.Kind.Type == MilitaryType.水军)
@@ -2290,7 +2304,7 @@
                                             siegeCount++;
                                         }
                                     }
-                                    if (siegeCount < this.Militaries.Count / 3)
+                                    if (siegeCount < this.Militaries.Count / (this.IsBesideWater ? 6 : 3))
                                     {
                                         this.AIRecruitment(false, true);
                                     }
@@ -2311,7 +2325,7 @@
                             Military transportTeam = null;
                             foreach (Military m in Militaries)
                             {
-                                if (m.Kind.ID == 29 && (transportTeam == null || transportTeam.Quantity <= m.Quantity) && m.Quantity <= m.Kind.MaxScale)
+                                if (m.IsTransport && (transportTeam == null || transportTeam.Quantity <= m.Quantity) && m.Quantity <= m.Kind.MaxScale)
                                 {
                                     transportTeam = m;
                                 }
@@ -2352,7 +2366,7 @@
                         MilitaryList ml = new MilitaryList();
                         foreach (Military m in Militaries)
                         {
-                            if (m.Kind.ID == 29)
+                            if (m.IsTransport)
                             {
                                 ml.Add(m);
                             }
@@ -2570,7 +2584,9 @@
 
         private void AIAutoReward()
         {
-            if ((this.BelongedFaction != null) && (this.Fund >= this.RewardPersonFund))
+            if ((this.BelongedFaction != null) 
+                //&& (this.Fund >= this.RewardPersonFund)
+                )
             {
                 this.RewardPersonsUnderLoyalty(100);
             }
@@ -2581,7 +2597,7 @@
             if (this.HasHostileTroopsInView()) return;
             foreach (Person person in this.Persons.GetList())
             {
-                if (person.WorkKind == ArchitectureWorkKind.无)
+                if (person.WorkKind == ArchitectureWorkKind.无 && person.Loyalty >= 100 && person.Tiredness <= 0)
                 {
                     person.GoForSearch();
                 }
@@ -3026,13 +3042,16 @@
                 }
                 if (i.A.BelongedFaction != this.BelongedFaction) continue;
 
-                if (!i.A.HostileLine && !i.A.FrontLine && !i.A.noFactionFrontline) continue;
+                if (this.BelongedSection.AIDetail.AllowOffensiveCampaign)
+                {
+                    if (!i.A.HostileLine && !i.A.FrontLine && !i.A.noFactionFrontline) continue;
 
-                if (!this.BelongedSection.AIDetail.AllowMilitaryTransfer && i.A.BelongedSection != this.BelongedSection) continue;
-
-                if (this.BelongedSection.AIDetail.OrientationKind == SectionOrientationKind.军区 &&
-                    this.BelongedSection.AIDetail.AllowMilitaryTransfer &&
-                    i.A.BelongedSection != this.BelongedSection && i.A.BelongedSection != this.BelongedSection.OrientationSection) continue;
+                    if (!this.BelongedSection.AIDetail.AllowMilitaryTransfer && i.A.BelongedSection != this.BelongedSection) continue;
+                }
+                else
+                {
+                    if (i.A.BelongedSection != this.BelongedSection.OrientationSection) continue;
+                }
 
                 if (!i.A.IsFoodEnough) continue;
 
@@ -3055,53 +3074,13 @@
                 }
             }
 
-            /*if (target == null && GameObject.Random(10) == 0)
-            {
-                foreach (LinkNode i in this.AIAllLinkNodes.Values)
-                {
-                    if (i.Level > 1)
-                    {
-                        break;
-                    }
-                    if (i.A.BelongedFaction != this.BelongedFaction) continue;
-
-                    if (!this.BelongedSection.AIDetail.AllowMilitaryTransfer && i.A.BelongedSection != this.BelongedSection) continue;
-
-                    if (this.BelongedSection.AIDetail.OrientationKind == SectionOrientationKind.军区 &&
-                        this.BelongedSection.AIDetail.AllowMilitaryTransfer &&
-                        i.A.BelongedSection != this.BelongedSection && i.A.BelongedSection != this.BelongedSection.OrientationSection) continue;
-
-                    if (this.ArmyScale < i.A.ArmyScale / 1.5) continue;
-
-                    if (!i.A.IsFoodEnough) continue;
-
-                    int weight = i.A.ArmyScale;
-
-                    if (i.A.orientationFrontLine)
-                    {
-                        weight = (int)(weight * 0.5);
-                    }
-
-                    if (i.A.HostileLine)
-                    {
-                        weight = (int)(weight * 0.75);
-                    }
-
-                    if (weight < leastTroop)
-                    {
-                        target = i;
-                        leastTroop = i.A.ArmyScale;
-                    }
-                }
-            }*/
-
             if (target != null)
             {
                 MilitaryList leaderlessArmies = new MilitaryList();
 
                 foreach (Military i in this.Militaries)
                 {
-                    if (i.FollowedLeader == null && (i.Leader == null || i.LeaderExperience < 10) && i.KindID != 29)
+                    if (i.FollowedLeader == null && (i.Leader == null || i.LeaderExperience < 10) && !i.IsTransport)
                     {
                         leaderlessArmies.Add(i);
                     }
@@ -3111,7 +3090,7 @@
                 {
                     int minMerit = int.MaxValue;
                     Person personToMove = null;
-                    foreach (Person p in this.BelongedFaction.Persons)
+                    foreach (Person p in base.Scenario.IsPlayer(this.BelongedFaction) ? this.BelongedSection.Persons : this.BelongedFaction.Persons)
                     {
                         if (!p.IsCaptive && p.LocationArchitecture != null && p.LocationArchitecture.BelongedSection == this.BelongedSection && p.Status == PersonStatus.Normal 
                             && p.Merit < minMerit && p.BelongedArchitecture.PersonCount + p.BelongedArchitecture.MovingPersons.Count > 1)
@@ -3128,7 +3107,7 @@
                 foreach (Military i in leaderlessArmies.GetRandomList())
                 {
                     if (this.ArmyScale < reserve) break;
-                    if (i.KindID == 29) continue;
+                    if (i.IsTransport) continue;
                     if (GlobalVariables.AINoTeamTransfer && !target.A.FrontLine)
                     {
                         i.BelongedArchitecture = target.A;
@@ -3145,7 +3124,7 @@
                     {
                         if (this.ArmyScale < reserve) break;
                         if (this.Persons.Count <= 0) break;
-                        if (i.KindID == 29) continue;
+                        if (i.IsTransport) continue;
                         if (this.Persons.HasGameObject(i.Leader))
                         {
                             if (GlobalVariables.AINoTeamTransfer && !target.A.FrontLine)
@@ -3634,7 +3613,7 @@
                     while (enumerator.MoveNext())
                     {
                         current = enumerator.Current;
-                        if (current.ID == 29) continue;
+                        if (current.IsTransport) continue;
                         if (current.Type == MilitaryType.水军 && this.AIWaterLinks.Count == 0) continue;
                         if (current.Type != MilitaryType.水军 && this.AILandLinks.Count == 0) continue;
                         if (((water && current.Type == MilitaryType.水军) || (!water && current.Type != MilitaryType.水军))
@@ -3658,7 +3637,7 @@
                     while (enumerator.MoveNext())
                     {
                         current = enumerator.Current;
-                        if (current.ID == 29) continue;
+                        if (current.IsTransport) continue;
                         if (current.Type == MilitaryType.水军 && this.AIWaterLinks.Count == 0) continue;
                         if (current.Type != MilitaryType.水军 && this.AILandLinks.Count == 0) continue;
                         if (((water && current.Type == MilitaryType.水军) || (!water && current.Type != MilitaryType.水军))
@@ -3671,11 +3650,6 @@
                         {
                             allMilitaries.Add(current);
                         }
-                        /*current = enumerator.Current;
-                        if ((((this.ValueWater == (current.Type == MilitaryType.水军)) || (!water && GameObject.Chance(20))) && current.CreateAvail(this)) && (current.ID != 29))
-                        {
-                            list.Add(current);
-                        }*/
                     }
                 }
                 if (list.Count > 0)
@@ -4290,10 +4264,7 @@
         public void ApplyInfluences()
         {
             this.Characteristics.ApplyInfluence(this, Applier.Characteristics, 0);
-            if (this.FacilityEnabled)
-            {
-                this.ApplyFacilityInfluences(false);
-            }
+            this.ApplyFacilityInfluences(false);
         }
 
         public void ApplyFacilityInfluences(bool skipNoCostFacility)
@@ -4302,7 +4273,10 @@
             {
                 if (!skipNoCostFacility || facility.MaintenanceCost > 0)
                 {
-                    facility.Influences.ApplyInfluence(this, Applier.Facility, facility.ID);
+                    if (this.FacilityEnabled || facility.MaintenanceCost <= 0)
+                    {
+                        facility.Influences.ApplyInfluence(this, Applier.Facility, facility.ID);
+                    }
                 }
             }
         }
@@ -4489,7 +4463,7 @@
             foreach (Military military in this.Militaries.GetRandomList())
             {
                 if (military.Scales < military.RetreatScale * 1.5) continue;
-                if (military.KindID == 29) continue; //never deal with transports in this function
+                if (military.IsTransport) continue; //never deal with transports in this function
                 switch (linkkind)
                 {
                     case LinkKind.Land:
@@ -4505,7 +4479,7 @@
                             //if ((military.Kind.Type == MilitaryType.水军) || (this.ValueWater && (!offensive || ((military.Quantity >= 0x1f40) && (GameObject.Random(military.Kind.Merit) <= 0)))))
                             if (GlobalVariables.LandArmyCanGoDownWater)
                             {
-                                if (!offensive || (military.KindID != 28 && military.KindID != 29))
+                                if (!offensive || (military.KindID != 28 && !military.IsTransport))
                                 {
                                     break;
                                 }
@@ -4522,7 +4496,6 @@
                 }
                 if ((((military.Scales > 5) && (military.Morale >= 80)) && (military.Combativity >= 80)) && (military.InjuryQuantity < military.Kind.MinScale)
                     && (!offensive || 
-                    /* (military.KindID != 29)*/
                     (military.Merit > 0)
                     )) //do not use transport teams to attack
                 {
@@ -5414,7 +5387,7 @@
         {
             foreach (Person person in this.Persons)
             {
-                if (/*(person.Loyalty <= 100) && */ (person != this.BelongedFaction.Leader))
+                if (person.Loyalty <= 110 && (person != this.BelongedFaction.Leader))
                 {
                     person.DecreaseLoyalty(StaticMethods.GetRandomValue((int)(damage * (int)(Enum.GetNames(typeof(PersonLoyalty)).Length - person.PersonalLoyalty) * (Math.Min(person.Loyalty, 100) / 100.0)), 100));
                 }
@@ -5478,6 +5451,7 @@
                 if (p.Tiredness > 0)
                 {
                     p.Tiredness -= GlobalVariables.TirednessDecrease;
+                    if (p.Tiredness < 0) p.Tiredness = 0;
                 }
             }
             foreach (Person p in this.MovingPersons)
@@ -5485,6 +5459,7 @@
                 if (p.Tiredness > 0 && (p.OutsideTask == OutsideTaskKind.后宮))
                 {
                     p.Tiredness -= GlobalVariables.TirednessDecrease;
+                    if (p.Tiredness < 0) p.Tiredness = 0;
                 }
             }
             foreach (Captive c in this.Captives)
@@ -5492,6 +5467,7 @@
                 if (c.CaptivePerson.Tiredness > 0)
                 {
                     c.CaptivePerson.Tiredness -= GlobalVariables.TirednessDecrease;
+                    if (c.CaptivePerson.Tiredness < 0) c.CaptivePerson.Tiredness = 0;
                 }
             }
             foreach (Person p in this.feiziliebiao)
@@ -5499,6 +5475,7 @@
                 if (p.Tiredness > 0)
                 {
                     p.Tiredness -= GlobalVariables.TirednessDecrease;
+                    if (p.Tiredness < 0) p.Tiredness = 0;
                 }
             }
         }
@@ -5815,6 +5792,8 @@
 
         private void DefensiveCampaign()
         {
+            DateTime beforeStart = DateTime.UtcNow;
+
             List<Point> orientations = new List<Point>();
             TroopList hostileTroopsInView = this.GetHostileTroopsInView();
             foreach (Troop troop in hostileTroopsInView)
@@ -5831,6 +5810,10 @@
                     int militaryCount = this.MilitaryCount;
                     while ((troopSent < militaryCount) && (this.TotalFriendlyForce < (this.TotalHostileForce * 5)) && this.EffectiveMilitaryCount > 0 && this.PersonCount > 0)
                     {
+                        if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                        {
+                            return;
+                        }
                         Troop troop2;
                         TroopList list4 = new TroopList();
                         bool isBesideWater = this.IsBesideWater;
@@ -5843,7 +5826,15 @@
                                 foreach (Troop t in candidates)
                                 {
                                     list4.Add(t);
+                                    if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                                    {
+                                        break;
+                                    }
                                 }
+                            }
+                            if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                            {
+                                break;
                             }
                         }
                         if (list4.Count > 0)
@@ -5921,11 +5912,20 @@
             }
             
             //not enough defensive troop, call for reinforcements!!
-            if (this.TotalFriendlyForce < this.TotalHostileForce)
+            float rate = (float) Math.Max(1, (200 - this.Endurance) * 0.005 + 1);
+            if (this.TotalFriendlyForce < this.TotalHostileForce * rate)
             {
                 foreach (LinkNode i in this.AIAllLinkNodes.Values)
                 {
+                    if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                    {
+                        return;
+                    }
                     if (i.Level > 1) break;
+                    if (i.A.actuallyUnreachableArch.Contains(this))
+                    {
+                        continue;
+                    }
                     if (this.BelongedFaction == i.A.BelongedFaction && i.A.HasPerson() 
                         && i.A.BelongedSection.AIDetail.AutoRun)
                     {
@@ -5946,14 +5946,22 @@
                             foreach (Military military in i.A.Militaries.GetRandomList())
                             {
                                 if (military.IsFewScaleNeedRetreat) continue;
-                                if (military.KindID == 29) continue;
+                                if (military.IsTransport) continue;
                                 if (this.isArmyNavigableTo(i, military) && (military.Morale > 90) && (military.InjuryQuantity < military.Kind.MinScale))
                                 {
                                     TroopList candidates = this.AISelectPersonIntoTroop(this, military);
                                     foreach (Troop t in candidates)
                                     {
                                         supportList.Add(t);
+                                        if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                                        {
+                                            break;
+                                        }
                                     }
+                                }
+                                if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                                {
+                                    break;
                                 }
                             }
                             if (supportList.Count <= 0)
@@ -5992,7 +6000,7 @@
                             //no troop could be added, give up.
                             if (!troopAdded) break;
                         }
-                        if (this.TotalFriendlyForce > this.TotalHostileForce) break;
+                        if (this.TotalFriendlyForce > this.TotalHostileForce * rate) break;
                     }
                 }
             }
@@ -6020,7 +6028,7 @@
 
         public void DemolishFacility(Facility facility)
         {
-            if (this.FacilityEnabled)
+            if (this.FacilityEnabled || facility.MaintenanceCost <= 0)
             {
                 facility.Influences.PurifyInfluence(this, Applier.Facility, facility.ID);
             }
@@ -6376,7 +6384,7 @@
 
         public void DisbandMilitary(Military m)
         {
-            if (m.KindID != 29)
+            if (!m.IsTransport)
             {
                 this.IncreasePopulation(m.Quantity);
             }
@@ -6515,19 +6523,13 @@
             int facilityMaintenanceCost = noFundToSustainFacility ? 0 : this.FacilityMaintenanceCost;
             if (this.Fund >= facilityMaintenanceCost)
             {
-                if (!this.FacilityEnabled)
-                {
-                    this.ApplyFacilityInfluences(true);
-                }
+                this.ApplyFacilityInfluences(true);
                 this.FacilityEnabled = true;
                 this.DecreaseFund(facilityMaintenanceCost);
             }
             else
             {
-                if (this.FacilityEnabled)
-                {
-                    this.PurifyFacilityInfluences();
-                }
+                this.PurifyFacilityInfluences();
                 this.FacilityEnabled = false;
             }
         }
@@ -7409,7 +7411,7 @@
             foreach (Point point in viewArea.Area)
             {
                 Troop troopByPosition = base.Scenario.GetTroopByPosition(point);
-                if ((troopByPosition != null) && troopByPosition.Army.KindID!=29 && (!troopByPosition.IsFriendly(this.BelongedFaction) && (troopByPosition.Status != TroopStatus.埋伏)))
+                if ((troopByPosition != null) && !troopByPosition.IsTransport && (!troopByPosition.IsFriendly(this.BelongedFaction) && (troopByPosition.Status != TroopStatus.埋伏)))
                 {
                     return true;
                 }
@@ -8286,7 +8288,7 @@
                 int r = 0;
                 foreach (Military military in this.Militaries)
                 {
-                    if (military.Kind.Type == MilitaryType.水军 && military.KindID != 28 && military.KindID != 29)
+                    if (military.Kind.Type == MilitaryType.水军 && military.KindID != 28 && !military.IsTransport)
                     {
                         r++;
                     }
@@ -8320,14 +8322,14 @@
         {
             foreach (MilitaryKind kind in this.BelongedFaction.AvailableMilitaryKinds.MilitaryKinds.Values)
             {
-                if (kind.Type == MilitaryType.水军 && kind.ID != 29 && kind.ID != 28)
+                if (kind.Type == MilitaryType.水军 && !kind.IsTransport && kind.ID != 28)
                 {
                     return true;
                 }
             }
             foreach (MilitaryKind kind in this.PrivateMilitaryKinds.MilitaryKinds.Values)
             {
-                if (kind.Type == MilitaryType.水军 && kind.ID != 29 && kind.ID != 28)
+                if (kind.Type == MilitaryType.水军 && !kind.IsTransport && kind.ID != 28)
                 {
                     return true;
                 }
@@ -8713,7 +8715,8 @@
 
         private void InsideTacticsAI()
         {
-            if (((this.PlanArchitecture == null) || GameObject.Chance(10)) && this.HasPerson())
+            //if (((this.PlanArchitecture == null) || GameObject.Chance(10)) && this.HasPerson())
+            if (this.HasPerson())
             {
                 if (this.Fund >= this.RewardPersonFund)
                 {
@@ -8770,7 +8773,7 @@
                         {
                             if ((person.WaitForFeiZi == null) && (person.WorkKind == ArchitectureWorkKind.无) && ((((((this.HostileLine && GameObject.Chance(10)) && GameObject.Chance(this.Morale / 10)) || !this.HostileLine) && ((GameObject.Random(base.Scenario.Date.Day) < GameObject.Random(30)) && (!this.HasFollowedLeaderMilitary(person) || GameObject.Chance(10)))) && (GameObject.Random(person.NonFightingNumber) > GameObject.Random(person.FightingNumber))) && (!this.FrontLine || (GameObject.Random(person.FightingNumber) < 100))))
                             {
-                                if (person.Loyalty >= 100)
+                                if (person.Loyalty >= 100 && person.Tiredness <= 0)
                                 {
                                     person.GoForSearch();
                                 }
@@ -9535,6 +9538,8 @@
         private bool ignoreReserve = false;
         private void OffensiveCampaign()
         {
+            DateTime beforeStart = DateTime.UtcNow;
+
             Person leader = this.BelongedFaction.Leader;
             if (this.BelongedSection != null && !this.BelongedSection.AIDetail.AllowOffensiveCampaign)
             {
@@ -9579,6 +9584,10 @@
                             continue;
                         }
                         if (GameObject.Chance(Parameters.AIObeyStrategyTendencyChance) && this.BelongedFaction.Leader.StrategyTendency == PersonStrategyTendency.维持现状)
+                        {
+                            continue;
+                        }
+                        if (this.actuallyUnreachableArch.Contains(i.A))
                         {
                             continue;
                         }
@@ -9733,6 +9742,10 @@
                                     if (!(this.HasOffensiveMilitary() && this.HasPerson()))
                                     {
                                         break;
+                                    }
+                                    if (DateTime.UtcNow - beforeStart > new TimeSpan(0, 0, Parameters.MaxAITroopTime))
+                                    {
+                                        return;
                                     }
                                 }
                                 if (armyScaleHere <= reserve)
@@ -11541,7 +11554,6 @@
             foreach (Person person in this.Persons)
             {
                 person.WorkKind = ArchitectureWorkKind.无;
-                person.RecruitmentMilitary = null;
             }
         }
 
@@ -11552,7 +11564,6 @@
                 if ((person.WorkKind != ArchitectureWorkKind.无) && (person.WorkKind != ArchitectureWorkKind.训练))
                 {
                      person.WorkKind = ArchitectureWorkKind.无;
-                     person.RecruitmentMilitary = null;
                 }
             }
         }
@@ -12468,6 +12479,20 @@
                 {
                     num += facility.MaintenanceCost;
                 }
+
+                if (this.feiziliebiao.Count > 0)
+                {
+                    int maxHouGongMaintainence = 0;
+                    foreach (Facility f in this.Facilities)
+                    {
+                        if (f.Kind.rongna > 0 && f.Kind.MaintenanceCost > maxHouGongMaintainence)
+                        {
+                            maxHouGongMaintainence = f.Kind.MaintenanceCost;
+                        }
+                    }
+                    num += this.feiziliebiao.Count * maxHouGongMaintainence;
+                }
+
                 return num;
             }
         }
@@ -13015,7 +13040,7 @@
                 int result = 0;
                 foreach (Military m in this.Militaries)
                 {
-                    if (m.KindID != 29)
+                    if (!m.IsTransport)
                     {
                         result++;
                     }
@@ -13505,7 +13530,7 @@
                     int num = 0;
                     foreach (Military military in this.Militaries)
                     {
-                        if (military.Kind.Type == MilitaryType.水军 && military.KindID != 29)
+                        if (military.Kind.Type == MilitaryType.水军 && !military.IsTransport)
                         {
                             num += military.Scales;
                         }

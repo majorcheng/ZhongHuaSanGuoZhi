@@ -51,6 +51,14 @@
             }
         }
 
+        public bool IsTransport
+        {
+            get
+            {
+                return this.Kind.IsTransport;
+            }
+        }
+
         public void ApplyFollowedLeader(Troop troop)
         {
             if (this.FollowedLeader == troop.Leader)
@@ -78,7 +86,7 @@
             architecture.BelongedFaction.AddMilitary(military);
             scenario.Militaries.AddMilitary(military);
             architecture.DecreaseFund((int) (kind.CreateCost * kind.GetRateOfNewMilitary(architecture)));
-            if (kind.ID == 29)
+            if (kind.IsTransport)
             {
                 military.Quantity = kind.MaxScale;
                 military.Morale = military.MoraleCeiling;
@@ -816,6 +824,10 @@
         {
             get
             {
+                if (this.morale > this.MoraleCeiling)
+                {
+                    this.morale = this.MoraleCeiling;
+                }
                 if (this.ShelledMilitary == null)
                 {
                     return this.morale;
@@ -839,7 +851,7 @@
         {
             get
             {
-                return this.BelongedTroop != null ? 120 : 100;
+                return this.BelongedTroop != null && this.BelongedArchitecture == null ? 120 : 100;
             }
         }
 
@@ -1070,7 +1082,7 @@
             get
             {
                 if (this.BelongedFaction == null) return false;
-                if (this.KindID == 29) return false;
+                if (this.IsTransport) return false;
                 return this.Scales < this.RetreatScale;
             }
         }

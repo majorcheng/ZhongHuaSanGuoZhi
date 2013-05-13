@@ -2,6 +2,7 @@
 {
     using GameFreeText;
     using GameGlobal;
+    using GameObjects;
     using Microsoft.Xna.Framework;
     using Microsoft.Xna.Framework.Graphics;
     using System;
@@ -18,6 +19,7 @@
         public string Name;
         public float Scale = 1f;
         public bool SmallToBig;
+        public int ItemID;
         private TabListInFrame tabList;
         internal FreeText Text;
 
@@ -84,11 +86,6 @@
             }
         }
 
-        public object GetPropertyValue(object ClassInstance)
-        {
-            return StaticMethods.GetPropertyValue(ClassInstance, this.Name);
-        }
-
         public void MoveHorizontal(int offset)
         {
             this.Text.DisplayOffset = new Point(this.Text.DisplayOffset.X + offset, this.Text.DisplayOffset.Y);
@@ -113,6 +110,31 @@
             }
         }
 
+        public string GetDataString(int index)
+        {
+            if (this.Name.Equals("HasSkill"))
+            {
+                return ((Person)this.tabList.gameObjectList[index]).HasSkill(this.ItemID) ? "○" : "×";
+            }
+
+            if (this.Name.Equals("HasStunt"))
+            {
+                return ((Person)this.tabList.gameObjectList[index]).HasStunt(this.ItemID) ? "○" : "×";
+            }
+
+            object obj = StaticMethods.GetPropertyValue(this.tabList.gameObjectList[index], this.Name);
+            String s;
+            if (obj is bool)
+            {
+                s = ((bool)obj) ? "○" : "×";
+            }
+            else
+            {
+                s = obj.ToString();
+            }
+            return s;
+        }
+
         public void ReCalculate(int top, ref int previousRight)
         {
             this.Text.DisplayOffset = Point.Zero;
@@ -130,7 +152,8 @@
                 {
                     for (num2 = 0; num2 < this.tabList.gameObjectList.Count; num2++)
                     {
-                        this.ColumnTextList.AddText(StaticMethods.GetPropertyValue(this.tabList.gameObjectList[num2], this.Name).ToString());
+                        string s = GetDataString(num2);
+                        this.ColumnTextList.AddText(s);
                     }
                     this.ColumnTextList.ResetAllTextTextures();
                 }
@@ -169,7 +192,8 @@
             {
                 for (num = 0; num < this.tabList.gameObjectList.Count; num++)
                 {
-                    this.ColumnTextList[num].Text = StaticMethods.GetPropertyValue(this.tabList.gameObjectList[num], this.Name).ToString();
+                    string s = this.GetDataString(num);
+                    this.ColumnTextList[num].Text = s;
                 }
                 this.ColumnTextList.ResetAllTextTextures();
                 this.ColumnTextList.ResetAllAlignedPositions();
