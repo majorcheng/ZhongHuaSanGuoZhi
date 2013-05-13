@@ -19,7 +19,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={pf}\WorldOfTheThreeKingdoms
+DefaultDirName={userpf}\WorldOfTheThreeKingdoms
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputBaseFilename=WorldOfTheThreeKingdoms
@@ -50,6 +50,12 @@ Source: "C:\Windows\Fonts\FZBWKSFW.TTF"; DestDir: "{fonts}"; Flags: onlyifdoesnt
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\剧本编辑器"; Filename: "{app}\JubenBianjiqi.exe"
+Name: "{group}\地型编辑器"; Filename: "{app}\DixingBianjiqi.exe"
+Name: "{group}\MOD设置"; Filename: "{app}\JSGME.exe"
+Name: "{group}\游戏资料夹"; Filename: "{app}"
+Name: "{group}\百度贴吧"; Filename: "{#MyAppURL}"
+Name: "{group}\解除安装"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]

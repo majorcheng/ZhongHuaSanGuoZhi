@@ -133,6 +133,8 @@
         public static float AIOffendIgnoreReserveChanceTroopRatioAdd = -0.8f;
         public static float AIOffendIgnoreReserveChanceTroopRatioMultiply = 100.0f;
 
+        public static int MaxAITroopTime = 20;
+
         public void InitializeGameParameters()
         {
             XmlDocument document = new XmlDocument();
@@ -256,6 +258,7 @@
             AIOffendIgnoreReserveProbBCDiffAdd = int.Parse(nextSibling.Attributes.GetNamedItem("AIOffendIgnoreReserveProbBCDiffAdd").Value);
             AIOffendIgnoreReserveChanceTroopRatioAdd = float.Parse(nextSibling.Attributes.GetNamedItem("AIOffendIgnoreReserveChanceTroopRatioAdd").Value);
             AIOffendIgnoreReserveChanceTroopRatioMultiply = float.Parse(nextSibling.Attributes.GetNamedItem("AIOffendIgnoreReserveChanceTroopRatioMultiply").Value);
+            MaxAITroopTime = int.Parse(nextSibling.Attributes.GetNamedItem("MaxAITroopTime").Value);
 
             BasicAIFundRate = AIFundRate;
             BasicAIFoodRate = AIFoodRate;
