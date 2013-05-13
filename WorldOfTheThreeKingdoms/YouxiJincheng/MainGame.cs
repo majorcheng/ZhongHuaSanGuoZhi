@@ -48,7 +48,7 @@ namespace WorldOfTheThreeKingdoms
             this.graphics.PreferredBackBufferWidth = this.previousWindowWidth;
             this.graphics.PreferredBackBufferHeight = this.previousWindowHeight;
             base.Window.AllowUserResizing = true;
-            base.Window.Title = "中华三国志威力加强版(已命名修改版 v.16)";
+            base.Window.Title = "中华三国志威力加强版(已命名修改版 v.17)";
 
             System.Windows.Forms.Control control = System.Windows.Forms.Control.FromHandle(base.Window.Handle);
             GameForm = (System.Windows.Forms.Form)System.Windows.Forms.Form.FromHandle(this.Window.Handle);
@@ -142,6 +142,11 @@ namespace WorldOfTheThreeKingdoms
                     this.mainGameScreen.ToggleFullScreen();
                 }
             }
+        }
+        
+        public void SaveGameWhenCrash(String _savePath)
+        {
+            this.mainGameScreen.SaveGameWhenCrash(_savePath);
         }
 
         public List<int> InitializationFactionIDs

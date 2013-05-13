@@ -66,6 +66,7 @@
         public YearTable YearTable = new YearTable();
         public Dictionary<Event, Architecture> EventsToApply = new Dictionary<Event, Architecture>();
         public EventList AllEvents = new EventList();
+        public bool AllNewGame;
 
         public event AfterLoadScenario OnAfterLoadScenario;
 
@@ -315,6 +316,15 @@
             {
                 person.Loyalty = 120;
             }
+            if (GameObject.Chance(father.childrenLoyaltyRate))
+            {
+                person.Loyalty = father.childrenLoyalty;
+            }
+            else if (GameObject.Chance(muqin.childrenLoyaltyRate))
+            {
+                person.Loyalty = muqin.childrenLoyalty;
+            }
+
             if (doAffect)
             {
                 person.muqinyingxiangnengli(muqin);
@@ -1549,6 +1559,7 @@
             this.InitializeSectionData();
             this.InitializeRoutewayData();
             this.InitializeArchitectureData();
+            this.InitializeMilitariesData();
             this.InitializeTroopData();
             this.InitializeCaptiveData();
             this.InitializePersonData();
@@ -1761,7 +1772,7 @@
             TroopList toRemove = new TroopList();
             foreach (Troop troop in this.Troops)
             {
-                if (troop.Leader == null)
+                if (troop.Leader == null || troop.Army == null || troop.Army.Kind == null)
                 {
                     toRemove.Add(troop);
                 }
@@ -1789,6 +1800,26 @@
                 {
                     event2.AfterHappenedEvent = this.TroopEvents.GetGameObject(event2.AfterEventHappened) as TroopEvent;
                 }
+            }
+        }
+
+        private void InitializeMilitariesData()
+        {
+            MilitaryList toRemove = new MilitaryList();
+            foreach (Military military in this.Militaries)
+            {
+                if (military.Kind == null)
+                {
+                    toRemove.Add(military);
+                }
+            }
+            foreach (Military military in toRemove)
+            {
+                if (military.BelongedArchitecture != null)
+                {
+                    military.BelongedArchitecture.RemoveMilitary(military);
+                }
+                this.Militaries.Remove(military);
             }
         }
 
@@ -2219,7 +2250,10 @@
                 catch
                 {
                 }
-                this.Militaries.AddMilitary(military);
+                if (military.Kind != null)
+                {
+                    this.Militaries.AddMilitary(military);
+                }
             }
             this.InitializeMilitaryData();
             DbConnection.Close();
@@ -2483,7 +2517,10 @@
                 {
                 }
                 troop.minglingweizhi = troop.RealDestination;
-                this.Troops.AddTroopWithEvent(troop);
+                if (troop.Army != null)
+                {
+                    this.Troops.AddTroopWithEvent(troop);
+                }
             }
             DbConnection.Close();
             DbConnection.Open();
@@ -2845,6 +2882,7 @@
                 this.OnAfterLoadScenario(this);
             }
             this.detectCurrentPlayerBattleState(this.CurrentPlayer);
+            this.AllNewGame = true;
             return true;
         }
 
@@ -2901,6 +2939,7 @@
                     GlobalVariables.DialogShowTime = oldDialogShowTime;
                 }
             }
+            this.AllNewGame = false;
             return true;
         }
         private int oldDialogShowTime = -1;
@@ -2970,6 +3009,8 @@
 
         private void NewFaction()
         {
+            if (GlobalVariables.WujiangYoukenengDuli == false) return;
+
             PersonList list = new PersonList();
             foreach (Person person in this.AvailablePersons)
             {
@@ -3191,6 +3232,7 @@
                 OleDbCommandBuilder builder;
                 if (saveMap)
                 {
+                    new OleDbCommand("Delete from Map", selectConnection).ExecuteNonQuery();
                     adapter = new OleDbDataAdapter("Select * from Map", selectConnection);
                     builder = new OleDbCommandBuilder(adapter);
                     adapter.Fill(dataSet, "Map");
@@ -3457,6 +3499,7 @@
                 dataSet.Clear();
                 if (saveMap)
                 {
+                    new OleDbCommand("Delete from TroopEvent", selectConnection).ExecuteNonQuery();
                     adapter = new OleDbDataAdapter("Select * from TroopEvent", selectConnection);
                     builder = new OleDbCommandBuilder(adapter);
                     adapter.Fill(dataSet, "TroopEvent");
@@ -3669,8 +3712,8 @@
                     row["StratagemExperience"] = person.StratagemExperience;
                     row["RoutCount"] = person.RoutCount;
                     row["RoutedCount"] = person.RoutedCount;
-                    row["Braveness"] = person.Braveness;
-                    row["Calmness"] = person.Calmness;
+                    row["Braveness"] = person.BaseBraveness;
+                    row["Calmness"] = person.BaseCalmness;
                     row["Loyalty"] = person.Loyalty;
                     row["BornRegion"] = (int)person.BornRegion;
                     row["AvailableLocation"] = person.AvailableLocation;
@@ -3734,6 +3777,7 @@
                 dataSet.Clear();
                 if (saveMap)
                 {
+                    new OleDbCommand("Delete from Region", selectConnection).ExecuteNonQuery();
                     adapter = new OleDbDataAdapter("Select * from Region", selectConnection);
                     builder = new OleDbCommandBuilder(adapter);
                     adapter.Fill(dataSet, "Region");
@@ -3751,6 +3795,7 @@
                     }
                     adapter.Update(dataSet, "Region");
                     dataSet.Clear();
+                    new OleDbCommand("Delete from State", selectConnection).ExecuteNonQuery();
                     adapter = new OleDbDataAdapter("Select * from State", selectConnection);
                     builder = new OleDbCommandBuilder(adapter);
                     adapter.Fill(dataSet, "State");
@@ -3824,6 +3869,7 @@
                 //{
                 if (saveMap)
                 {
+                    new OleDbCommand("Delete from Event", selectConnection).ExecuteNonQuery();
                     adapter = new OleDbDataAdapter("Select * from Event", selectConnection);
                     builder = new OleDbCommandBuilder(adapter);
                     adapter.Fill(dataSet, "Event");

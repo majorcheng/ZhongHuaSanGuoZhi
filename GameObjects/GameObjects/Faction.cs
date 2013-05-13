@@ -13,6 +13,7 @@
     using System.Runtime.CompilerServices;
     using System.Runtime.InteropServices;
     using System.Threading;
+    using System.Linq;
 
     public class Faction : GameObject
     {
@@ -136,10 +137,10 @@
         private int upgradingDaysLeft;
         private int upgradingTechnique = -1;
 
-        public float techniqueReputationRateDecrease = 0f;
-        public float techniquePointCostRateDecrease = 0f;
-        public float techniqueTimeRateDecrease = 0f;
-        public float techniqueFundCostRateDecrease = 0f;
+        public List<float> techniqueReputationRateDecrease = new List<float>();
+        public List<float> techniquePointCostRateDecrease = new List<float>();
+        public List<float> techniqueTimeRateDecrease = new List<float>();
+        public List<float> techniqueFundCostRateDecrease = new List<float>();
 
         public event AfterCatchLeader OnAfterCatchLeader;
 
@@ -224,9 +225,17 @@
                         if (!GlobalVariables.LiangdaoXitong) break;
                         result = Math.Max(100, result);
                         break;
+                    case 2000:
+                    case 2010:
+                    case 2020:
+                    case 2030:
+                    case 2200:
+                    case 2210:
+                    case 2220:
+                    case 2230:
                     case 2240:
                     case 2250:
-                        if (int.Parse(i.Parameter2) == 3)
+                        if (int.Parse(i.Parameter) == 3)
                         {
                             bool hasWater = false;
                             foreach (Architecture a in this.Architectures)
@@ -239,12 +248,48 @@
                             }
                             if (!hasWater) break;
                         }
-                        else if (int.Parse(i.Parameter2) == 4)
+                        else if (int.Parse(i.Parameter) == 4)
                         {
                             bool hasSiege = false;
                             foreach (MilitaryKind mk in this.AvailableMilitaryKinds.MilitaryKinds.Values)
                             {
                                 if (mk.Type == MilitaryType.器械)
+                                {
+                                    hasSiege = true;
+                                }
+                            }
+                            if (!hasSiege) break;
+                        }
+                        else if (int.Parse(i.Parameter) == 0)
+                        {
+                            bool hasSiege = false;
+                            foreach (MilitaryKind mk in this.AvailableMilitaryKinds.MilitaryKinds.Values)
+                            {
+                                if (mk.Type == MilitaryType.步兵)
+                                {
+                                    hasSiege = true;
+                                }
+                            }
+                            if (!hasSiege) break;
+                        }
+                        else if (int.Parse(i.Parameter) == 1)
+                        {
+                            bool hasSiege = false;
+                            foreach (MilitaryKind mk in this.AvailableMilitaryKinds.MilitaryKinds.Values)
+                            {
+                                if (mk.Type == MilitaryType.弩兵)
+                                {
+                                    hasSiege = true;
+                                }
+                            }
+                            if (!hasSiege) break;
+                        }
+                        else if (int.Parse(i.Parameter) == 2)
+                        {
+                            bool hasSiege = false;
+                            foreach (MilitaryKind mk in this.AvailableMilitaryKinds.MilitaryKinds.Values)
+                            {
+                                if (mk.Type == MilitaryType.骑兵)
                                 {
                                     hasSiege = true;
                                 }
@@ -1935,22 +1980,26 @@
 
         public int getTechniqueActualPointCost(Technique technique)
         {
-            return (int) Math.Round(technique.PointCost * (1 - this.techniquePointCostRateDecrease));
+            if (this.techniquePointCostRateDecrease.Count == 0) return technique.PointCost;
+            return (int) Math.Round(technique.PointCost * (1 - this.techniquePointCostRateDecrease.Min()));
         }
 
         public int getTechniqueActualReputation(Technique technique)
         {
-            return (int) Math.Round(technique.Reputation * (1 - this.techniqueReputationRateDecrease));
+            if (this.techniqueReputationRateDecrease.Count == 0) return technique.Reputation;
+            return (int)Math.Round(technique.Reputation * (1 - this.techniqueReputationRateDecrease.Min()));
         }
 
         public int getTechniqueActualFundCost(Technique technique)
         {
-            return (int) Math.Round(technique.FundCost * (1 - this.techniqueFundCostRateDecrease));
+            if (this.techniqueFundCostRateDecrease.Count == 0) return technique.FundCost;
+            return (int)Math.Round(technique.FundCost * (1 - this.techniqueFundCostRateDecrease.Min()));
         }
 
         public int getTechniqueActualTime(Technique technique)
         {
-            return (int) Math.Round(technique.Days * (1 - techniqueTimeRateDecrease));
+            if (this.techniqueTimeRateDecrease.Count == 0) return technique.Days;
+            return (int)Math.Round(technique.Days * (1 - techniqueTimeRateDecrease.Min()));
         }
 
         public bool MatchTechnique(Technique technique, Architecture architecture)
